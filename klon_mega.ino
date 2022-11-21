@@ -41,6 +41,7 @@ const int hall2npStairsLightButton = 41;
 
 //parents Bedroom
 const int parBedroomFloorTempSensor = 42;
+const int parBedroomWindowSensor = 21;
 
 //bathroom
 const int bathroomFloorTempSensor = 43;
@@ -51,10 +52,12 @@ const int bathroomNilanBoostButton = 46;
 //child room 1
 const int childroom1FloorTempSensor = 47;
 #define childroom1AirTempHumSensor 48
+const int childroom1WindowSensor = 20;
 
 //child room 2
 const int childroom2FloorTempSensor = 49;
 #define childroom2AirTempHumSensor 50
+const int childroom2WindowSensor = 19;
 
 const int ralayNilanBoost = 51;
 
@@ -137,11 +140,11 @@ int ralayNilanBoostState = 0;
 
 //Arduino network settings
 byte mac[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDA, 0x02 };
-//IPAddress ip(192, 168, 31, 99);
+//IPAddress ip(192, 168, 88, 251);
 EthernetClient mega1;
 
 //Mqtt settings------------------------
-#define mqtt_server "192.168.31.100"
+#define mqtt_server "192.168.88.250"
 #define mqtt_user "hass"
 #define mqtt_password "inmate543964"
 
@@ -184,6 +187,7 @@ EthernetClient mega1;
 #define np2_loznice_teplota_vzduch "2np/loznice/teplota_vzduch"
 #define np2_loznice_vlhkost_vzduch "2np/loznice/vlhkost_vzduch"
 #define np2_loznice_vypinac_led_zaves "2np/loznice/vypinac_led_zaves"
+#define np2_loznice_okno "2np/loznice/okno"
 
 //bathroom
 #define np2_koupelna_teplota_podlaha "2np/koupelna/teplota_podlaha"
@@ -196,11 +200,13 @@ EthernetClient mega1;
 #define np2_dp2_teplota_podlaha "2np/dp2/teplota_podlaha"
 #define np2_dp2_teplota_vzduch "2np/dp2/teplota_vzduch"
 #define np2_dp2_vlhkost_vzduch "2np/dp2/vlhkost_vzduch"
+#define np2_dp2_okno "2np/dp2/okno"
 
 //child room 1
 #define np2_dp1_teplota_podlaha "2np/dp1/teplota_podlaha"
 #define np2_dp1_teplota_vzduch "2np/dp1/teplota_vzduch"
 #define np2_dp1_vlhkost_vzduch "2np/dp1/vlhkost_vzduch"
+#define np2_dp1_okno "2np/dp1/okno"
 #define motion_1_1 "motion/livingroomMotion1_1"
 
 const char* ralay_nilan_boost = "relay/nilan_boost/set";
@@ -256,9 +262,23 @@ void setup() {
   digitalWrite(hall1npMotionSensor, LOW);
   pinMode(kitchenMotionSensor, INPUT);
   digitalWrite(kitchenMotionSensor, LOW);
-  pinMode(livroomMotionSensor , INPUT);
-  digitalWrite(livroomMotionSensor , LOW);
+  pinMode(livroomMotionSensor, INPUT);
+  digitalWrite(livroomMotionSensor, LOW);
   //motion end
+  //binary sensor
+  pinMode(hall1npMainDoorSensor, INPUT);
+  digitalWrite(hall1npMainDoorSensor, HIGH);
+  pinMode(kitchenWindowSensor, INPUT);
+  digitalWrite(kitchenWindowSensor, HIGH);
+  pinMode(livroomDoorToGardenSensor, INPUT);
+  digitalWrite(livroomDoorToGardenSensor, HIGH);
+  pinMode(parBedroomWindowSensor, INPUT);
+  digitalWrite(parBedroomWindowSensor, HIGH);
+  pinMode(childroom1WindowSensor, INPUT);
+  digitalWrite(childroom1WindowSensor, HIGH);
+  pinMode(childroom2WindowSensor, INPUT);
+  digitalWrite(childroom2WindowSensor, HIGH);
+  //binary sensor end
   pinMode(ralayNilanBoost, OUTPUT);
   digitalWrite(ralayNilanBoost, LOW);
   // start the Ethernet connection:
@@ -300,7 +320,7 @@ void setup() {
   bathroomAirTempHumSensorDefinition.begin();
   childroom1AirTempHumSensorDefinition.begin();
   childroom2AirTempHumSensorDefinition.begin();
-  
+
   //sensors DALAS floor
   hall1npFloorTempSensorDefinition.begin();
   livroomFloorTempSensorDefinition.begin();
@@ -308,7 +328,6 @@ void setup() {
   bathroomFloorTempSensorDefinition.begin();
   childroom1FloorTempSensorDefinition.begin();
   childroom2FloorTempSensorDefinition.begin();
-
 }
 
 //----------Buttons----------
@@ -390,7 +409,7 @@ static int protoThreadButtons(struct pt* pt, int interval) {
 //----------end buttons----------
 
 //----------Sensors----------
-void temperatureHumidityDht(DHT sensor, char *publishTemperature, char *publishHumidity, double* stateTemperature, double* stateHumidity) {
+void temperatureHumidityDht(DHT sensor, char* publishTemperature, char* publishHumidity, double* stateTemperature, double* stateHumidity) {
   char charBuffer[13];
   String str;
   double temperature = 0.0;
@@ -426,21 +445,18 @@ void temperatureHumidityDht(DHT sensor, char *publishTemperature, char *publishH
   return;
 }
 
-void temperatureDalas(DallasTemperature sensor, char *publishTemperature) {
+void temperatureDalas(DallasTemperature sensor, char* publishTemperature) {
   sensor.requestTemperatures();
   double temperatureC = 0.0;
   temperatureC = sensor.getTempCByIndex(0);
-  if(temperatureC > -50)
-  {
+  if (temperatureC > -50) {
     Serial.print(temperatureC);
     Serial.println("ºC");
     char charBuffer[13];
     String str = String(temperatureC);
     str.toCharArray(charBuffer, str.length());
     mqttClient.publish(publishTemperature, charBuffer);
-  }
-  else
-  {
+  } else {
     Serial.println("Sensor in error state.");
   }
 }
@@ -455,7 +471,7 @@ static int protoThreadSensors(struct pt* pt, int interval) {
     //dht22
     temperatureHumidityDht(hall1npAirTempHumSensorDefinition, np1_predsin_teplota_vzduch, np1_predsin_vlhkost_vzduch, &hall1npAirTempSensorState, &hall1npAirHumSensorState);
     temperatureHumidityDht(livroomAirTempHumSensorDefinition, np1_obyvak_teplota_vzduch, np1_obyvak_teplota_vlhkost, &livroomAirTempSensorState, &livroomAirHumSensorState);
-    temperatureHumidityDht(bathroomAirTempHumSensorDefinition, np2_koupelna_teplota_vzduch, np2_koupelna_vlhkost_vzduch, &bathroomAirTempSensorState, &bathroomAirHumSensorState); 
+    temperatureHumidityDht(bathroomAirTempHumSensorDefinition, np2_koupelna_teplota_vzduch, np2_koupelna_vlhkost_vzduch, &bathroomAirTempSensorState, &bathroomAirHumSensorState);
     temperatureHumidityDht(childroom1AirTempHumSensorDefinition, np2_dp1_teplota_vzduch, np2_dp1_vlhkost_vzduch, &childroom1AirTempSensorState, &childroom1AirHumSensorState);
     temperatureHumidityDht(childroom2AirTempHumSensorDefinition, np2_dp2_teplota_vzduch, np2_dp2_vlhkost_vzduch, &childroom2AirTempSensorState, &childroom2AirHumSensorState);
     //dalas
@@ -489,8 +505,7 @@ void relayState(const char* relayArticle, int relayGpio) {
   mqttClient.publish("relay/livingroomRelay1_1/available", "online");
   if (digitalRead(relayGpio) == HIGH) {
     mqttClient.publish(relayArticle, "ON");
-  }
-  else {
+  } else {
     mqttClient.publish(relayArticle, "OFF");
   }
 }
@@ -510,27 +525,44 @@ static int protoThreadRelay(struct pt* pt, int interval) {
 
 //----------Motion sensors----------
 void motionSensor(int motionSensorPin, int motionSensorState, const char* motionMqttMessage) {
-  if (digitalRead(motionSensorPin) == HIGH)
-  {
+  if (digitalRead(motionSensorPin) == HIGH) {
     Serial.println("Detekce pohybu pomoci HC-SR501!");
     mqttClient.publish(motionMqttMessage, "ON");
-  }
-  else if (digitalRead(motionSensorPin) == LOW)
-  {
+  } else if (digitalRead(motionSensorPin) == LOW) {
     mqttClient.publish(motionMqttMessage, "OFF");
   }
 }
 //----------end motions----------
+//----------Binary sensors----------
+void binarySensor(int binarySensorPin, const char* binarySensorMqttMessage) {
+  if (digitalRead(binarySensorPin) == LOW) {
+    Serial.print("Sensor rozepnut"); 
+    mqttClient.publish(binarySensorMqttMessage, "Open");
+  } 
+  else if (digitalRead(binarySensorPin) == HIGH) {
+    Serial.print("Sensor sepnut");
+    mqttClient.publish(binarySensorMqttMessage, "Close");
+  }
+}
+//----------Binary motions----------
 
 void loop() {
   if (!mqttClient.connected()) {
     reconnect();
   }
-  motionSensor(hall1npMotionSensor , hall1npMotionSensorState, np1_predsin_pohyb);
-  motionSensor(kitchenMotionSensor , kitchenMotionSensorState, np1_kuchyn_pohyb);
-  motionSensor(livroomMotionSensor , livroomMotionSensorState, np1_obyvak_pohyb);
-  protoThreadButtons(&pt2, 20);  // by calling them infinitely
-  protoThreadRelay(&pt3, 30);  // by calling them infinitely
+  motionSensor(hall1npMotionSensor, hall1npMotionSensorState, np1_predsin_pohyb);
+  motionSensor(kitchenMotionSensor, kitchenMotionSensorState, np1_kuchyn_pohyb);
+  motionSensor(livroomMotionSensor, livroomMotionSensorState, np1_obyvak_pohyb);
+  
+  binarySensor(hall1npMainDoorSensor, np1_predsin_dvere);
+  binarySensor(kitchenWindowSensor, np1_kuchyn_okno);
+  binarySensor(livroomDoorToGardenSensor, np1_obyvak_dvere);
+  binarySensor(parBedroomWindowSensor, np2_loznice_okno);
+  binarySensor(childroom1WindowSensor, np2_dp1_okno);
+  binarySensor(childroom2WindowSensor, np2_dp2_okno);
+
+  protoThreadButtons(&pt2, 20);     // by calling them infinitely
+  protoThreadRelay(&pt3, 30);       // by calling them infinitely
   protoThreadSensors(&pt1, 20000);  // by calling them infinitely
   mqttClient.loop();
 }
