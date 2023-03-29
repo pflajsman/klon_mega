@@ -434,18 +434,30 @@ static int protoThreadSensors(struct pt* pt, int interval) {
     PT_WAIT_UNTIL(pt, millis() - timestamp > interval);
     timestamp = millis();
     //dht22
+    switchCheck();
     temperatureHumidityDht(hall1npAirTempHumSensorDefinition, np1_predsin_teplota_vzduch, np1_predsin_vlhkost_vzduch, &hall1npAirTempSensorState, &hall1npAirHumSensorState);
+    switchCheck();
     temperatureHumidityDht(livroomAirTempHumSensorDefinition, np1_obyvak_teplota_vzduch, np1_obyvak_teplota_vlhkost, &livroomAirTempSensorState, &livroomAirHumSensorState);
+    switchCheck();
     temperatureHumidityDht(bathroomAirTempHumSensorDefinition, np2_koupelna_teplota_vzduch, np2_koupelna_vlhkost_vzduch, &bathroomAirTempSensorState, &bathroomAirHumSensorState);
+    switchCheck();
     temperatureHumidityDht(childroom1AirTempHumSensorDefinition, np2_dp1_teplota_vzduch, np2_dp1_vlhkost_vzduch, &childroom1AirTempSensorState, &childroom1AirHumSensorState);
+    switchCheck();
     temperatureHumidityDht(childroom2AirTempHumSensorDefinition, np2_dp2_teplota_vzduch, np2_dp2_vlhkost_vzduch, &childroom2AirTempSensorState, &childroom2AirHumSensorState);
+    switchCheck();
     //dalas
     temperatureDalas(hall1npFloorTempSensorDefinition, np1_predsin_teplota_podlaha);
+    switchCheck();
     temperatureDalas(livroomFloorTempSensorDefinition, np1_obyvak_teplota_podlaha);
+    switchCheck();
     temperatureDalas(parBedroomFloorTempSensorDefinition, np2_loznice_teplota_podlaha);
+    switchCheck();
     temperatureDalas(bathroomFloorTempSensorDefinition, np2_koupelna_teplota_podlaha);
+    switchCheck();
     temperatureDalas(childroom1FloorTempSensorDefinition, np2_dp1_teplota_podlaha);
+    switchCheck();
     temperatureDalas(childroom2FloorTempSensorDefinition, np2_dp2_teplota_podlaha);
+    switchCheck();
   }
   PT_END(pt);
 }
