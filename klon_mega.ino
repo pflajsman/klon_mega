@@ -9,7 +9,7 @@
 
 void callback(char* topic, byte* payload, unsigned int length);
 
-//----------pin definition----------//freePins:27, 28, 32, 46
+//----------pin definition----------//freePins: 32, 46
 //1NP HALL
 const int hall1npMainDoorSensor = 22;
 const int hall1npFloorTempSensor = 23;
@@ -19,6 +19,8 @@ const int hall1npMotionSensor = 25;
 //1NP kitchen
 const int kitchenMotionSensor = 29;
 const int kitchenWindowSensor = 30;
+const int kitchenSinkSideLedButton = 27;
+const int kitchenDevilSideLedButton = 28;
 
 //livingroom/dinningroom
 const int livroomLightButton = 31;
@@ -93,6 +95,8 @@ int livingroomHall2npLightButtonState = 0;
 int hall2npLightButtonState = 0;
 int hall2npStairsLightButtonState = 0;
 int bathroomLedButtonState = 0;
+int kitchenDevilSideLedButtonState = 0;
+int kitchenSinkSideLedButtonState = 0;
 
 //sensors
 //DHT22
@@ -152,6 +156,8 @@ EthernetClient mega1;
 //kitchen
 #define np1_kuchyn_pohyb "1np/kuchyn/pohyb"
 #define np1_kuchyn_okno "1np/kuchyn/okno"
+#definr np1_kuchyn_led_devil_vypinac "1np/kuchyn/led_devil_vypina"
+#definr np1_kuchyn_led_sink_vypinac "1np/kuchyn/led_sink_vypinac"
 
 //livingroom
 #define np1_obyvak_vypinac_svetlo_obyvak "1np/obyvak/vypinac_svetlo_obyvak"
@@ -283,6 +289,11 @@ void setup() {
   digitalWrite(hall2npStairsLightButton, LOW);
   pinMode(bathroomLedButton, INPUT);
   digitalWrite(bathroomLedButton, LOW);
+  pinMode(kitchenDevilSideLedButton, INPUT);
+  digitalWrite(kitchenDevilSideLedButton, LOW);
+  pinMode(kitchenSinkSideLedButton, INPUT);
+  digitalWrite(kitchenSinkSideLedButton, LOW);
+  
   //buttons end
   //sensors dht22 Air
   hall1npAirTempHumSensorDefinition.begin();
@@ -335,6 +346,16 @@ void switchCheck() {
   if (digitalRead(bathroomLedButton) == !bathroomLedButtonState) {
     mqttClient.publish(np2_koupelna_vypinac_led_pod_umyvadlem, "ON");
     bathroomLedButtonState = !bathroomLedButtonState;
+  }
+  
+  if (digitalRead(kitchenDevilSideLedButton) == !kitchenDevilSideLedButtonState) {
+    mqttClient.publish(np1_kuchyn_led_devil_vypinac, "ON");
+    kitchenDevilSideLedButtonState = !kitchenDevilSideLedButtonState;
+  }
+  
+  if (digitalRead(kitchenSinkSideLedButton) == !kitchenSinkSideLedButtonState) {
+    mqttClient.publish(np1_kuchyn_led_sink_vypinac, "ON");
+    kitchenSinkSideLedButtonState = !kitchenSinkSideLedButtonState;
   }
 }
 
