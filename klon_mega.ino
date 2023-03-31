@@ -156,8 +156,8 @@ EthernetClient mega1;
 //kitchen
 #define np1_kuchyn_pohyb "1np/kuchyn/pohyb"
 #define np1_kuchyn_okno "1np/kuchyn/okno"
-#definr np1_kuchyn_led_devil_vypinac "1np/kuchyn/led_devil_vypina"
-#definr np1_kuchyn_led_sink_vypinac "1np/kuchyn/led_sink_vypinac"
+#define np1_kuchyn_led_devil_vypinac "1np/kuchyn/led_devil_vypina"
+#define np1_kuchyn_led_sink_vypinac "1np/kuchyn/led_sink_vypinac"
 
 //livingroom
 #define np1_obyvak_vypinac_svetlo_obyvak "1np/obyvak/vypinac_svetlo_obyvak"
@@ -544,6 +544,7 @@ void motionSensorKitchen() {
   } else {
     if (kitchenMotionSensorState == HIGH){
       kitchenMotionSensorState = LOW;
+      mqttClient.publish(np1_kuchyn_pohyb, "OFF");
     }
   }
 }
