@@ -10,7 +10,7 @@
 
 void callback(char* topic, byte* payload, unsigned int length);
 
-//----------pin definition----------//freePins: 32, 46
+//----------pin definition----------//freePins: 46
 //1NP HALL
 const int hall1npMainDoorSensor = 22;
 const int hall1npFloorTempSensor = 23;
@@ -56,9 +56,11 @@ const int childroom2FloorTempSensor = 49;
 #define childroom2AirTempHumSensor 26
 const int childroom2WindowSensor = 19;
 
-const int ralayNilanBoost = 51;
+//awning relays
+const int awningRelay1 = 32;
+const int awningRelay2 = 46;
 
-//----------end pin definition----------
+//----------end pin definition----------//freePins: 46
 
 //sensors
 #define typDHT22 DHT22
@@ -198,8 +200,13 @@ EthernetClient mega1;
 #define np2_dp1_vlhkost_vzduch "2np/dp1/vlhkost_vzduch"
 #define np2_dp1_okno "2np/dp1/okno"
 
-const char* ralay_nilan_boost = "relay/nilan_boost/set";
-const char* state_ralay_nilan_boost = "relay/nilan_boost/available";
+//Awning relay MQTT topics
+const char* awningRelay1_cmd = "awning/relay1/set";
+const char* awningRelay1_state = "awning/relay1";
+const char* awningRelay1_avail = "awning/relay1/available";
+const char* awningRelay2_cmd = "awning/relay2/set";
+const char* awningRelay2_state = "awning/relay2";
+const char* awningRelay2_avail = "awning/relay2/available";
 
 //Protothread
 static struct pt pt1, pt2, pt3;
@@ -211,8 +218,12 @@ boolean reconnect() {
   Serial.print("Attempting MQTT connection...");
   if (mqttClient.connect("KlonClient", mqtt_user, mqtt_password)) {
     Serial.println("connected");
-    //once connected to MQTT broker, subscribe command if any
-    mqttClient.subscribe(ralay_nilan_boost);
+    //subscribe to relay command topics
+    mqttClient.subscribe(awningRelay1_cmd);
+    mqttClient.subscribe(awningRelay2_cmd);
+    //publish availability on connect
+    mqttClient.publish(awningRelay1_avail, "online");
+    mqttClient.publish(awningRelay2_avail, "online");
     return true;
   } else {
     Serial.print("failed, rc=");
@@ -263,8 +274,11 @@ void setup() {
   pinMode(childroom2WindowSensor, INPUT);
   digitalWrite(childroom2WindowSensor, HIGH);
   //binary sensor end
-  pinMode(ralayNilanBoost, OUTPUT);
-  digitalWrite(ralayNilanBoost, LOW);
+  //awning relays
+  pinMode(awningRelay1, OUTPUT);
+  digitalWrite(awningRelay1, LOW);
+  pinMode(awningRelay2, OUTPUT);
+  digitalWrite(awningRelay2, LOW);
   // start the Ethernet connection:
   EthernetConnect();
   mqttClient.setServer(mqtt_server, 1883);
@@ -457,37 +471,51 @@ static int protoThreadSensors(struct pt* pt, int interval) {
 //----------end sensors----------
 
 //----------Relay----------
-void relaySet(char* topic, byte* payload, const char* relayArticle, int relayGpio) {
-
-  String msg = String((char)payload[1]);
+// Handle relay command from MQTT (payload: "ON" or "OFF")
+void relaySet(char* topic, byte* payload, unsigned int length, const char* cmdTopic, const char* stateTopic, int relayGpio) {
   String top = String(topic);
-  if (top == relayArticle && msg == "N") {
+  if (top != cmdTopic) return;
+
+  // Convert payload to string
+  char message[length + 1];
+  for (unsigned int i = 0; i < length; i++) {
+    message[i] = (char)payload[i];
+  }
+  message[length] = '\0';
+  String msg = String(message);
+
+  if (msg == "ON") {
     digitalWrite(relayGpio, HIGH);
-    Serial.print("Relay on");
-  }
-  if (top == relayArticle && msg == "F") {
-    Serial.print("Relay off");
+    Serial.print("Relay ON: ");
+    Serial.println(stateTopic);
+    mqttClient.publish(stateTopic, "ON");
+  } else if (msg == "OFF") {
     digitalWrite(relayGpio, LOW);
+    Serial.print("Relay OFF: ");
+    Serial.println(stateTopic);
+    mqttClient.publish(stateTopic, "OFF");
   }
 }
 
-void relayState(const char* relayArticle, int relayGpio) {
-  mqttClient.publish("relay/livingroomRelay1_1/available", "online");
+// Publish relay state and availability
+void relayState(const char* stateTopic, const char* availTopic, int relayGpio) {
+  mqttClient.publish(availTopic, "online");
   if (digitalRead(relayGpio) == HIGH) {
-    mqttClient.publish(relayArticle, "ON");
+    mqttClient.publish(stateTopic, "ON");
   } else {
-    mqttClient.publish(relayArticle, "OFF");
+    mqttClient.publish(stateTopic, "OFF");
   }
 }
 
-//thread method
+//thread method - periodically publish relay states
 static int protoThreadRelay(struct pt* pt, int interval) {
   static unsigned long timestamp = 0;
   PT_BEGIN(pt);
   while (1) {
     PT_WAIT_UNTIL(pt, millis() - timestamp > interval);
     timestamp = millis();
-    relayState(state_ralay_nilan_boost, ralayNilanBoost);
+    relayState(awningRelay1_state, awningRelay1_avail, awningRelay1);
+    relayState(awningRelay2_state, awningRelay2_avail, awningRelay2);
   }
   PT_END(pt);
 }
@@ -590,16 +618,17 @@ void loop() {
   binarySensor(childroom1WindowSensor, np2_dp1_okno, &childroom1WindowSensorState);
   binarySensor(childroom2WindowSensor, np2_dp2_okno, &childroom2WindowSensorState);
 
-  protoThreadButtons(&pt2, 20);     // by calling them infinitely
-  //protoThreadRelay(&pt3, 30);       // by calling them infinitely
-  protoThreadSensors(&pt1, 20000);  // by calling them infinitely
+  protoThreadButtons(&pt2, 20);      // every 20ms
+  protoThreadRelay(&pt3, 30000);     // every 30 seconds - publish relay state
+  protoThreadSensors(&pt1, 20000);   // every 20 seconds
   mqttClient.loop();
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("CallBack");
-  String top = String(topic);
-  Serial.println(top);
-  Serial.println(char(payload[1]));
-  relaySet(topic, payload, ralay_nilan_boost, ralayNilanBoost);
+  Serial.print("MQTT callback: ");
+  Serial.println(topic);
+
+  // Handle awning relay commands
+  relaySet(topic, payload, length, awningRelay1_cmd, awningRelay1_state, awningRelay1);
+  relaySet(topic, payload, length, awningRelay2_cmd, awningRelay2_state, awningRelay2);
 }  //end callback
