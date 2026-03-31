@@ -5,6 +5,7 @@
 #include <DHT.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <avr/wdt.h>  // Watchdog timer for auto-recovery
 #include "arduino_secrets.h"
 
 void callback(char* topic, byte* payload, unsigned int length);
@@ -61,7 +62,6 @@ const int ralayNilanBoost = 51;
 
 //sensors
 #define typDHT22 DHT22
-#define typDHT11 DHT11
 
 DHT hall1npAirTempHumSensorDefinition(hall1npAirTempHumSensor, typDHT22);
 DHT livroomAirTempHumSensorDefinition(livroomAirTempHumSensor, typDHT22);
@@ -100,7 +100,6 @@ int kitchenSinkSideLedButtonState = 0;
 
 //sensors
 //DHT22
-double stateFloorTemperature1 = 0.0;
 double hall1npAirTempSensorState = 0.0;
 double livroomAirTempSensorState = 0.0;
 double bathroomAirTempSensorState = 0.0;
@@ -112,14 +111,6 @@ double bathroomAirHumSensorState = 0.0;
 double childroom1AirHumSensorState = 0.0;
 double childroom2AirHumSensorState = 0.0;
 
-//DALAS FLOOR
-double hall1npFloorTempSensorState = 0.0;
-double livroomFloorTempSensorState = 0.0;
-double parBedroomFloorTempSensorState = 0.0;
-double bathroomFloorTempSensorState = 0.0;
-double childroom1FloorTempSensorState = 0.0;
-double childroom2FloorTempSensorState = 0.0;
-
 //motion
 int hall1npMotionSensorState = LOW;
 int kitchenMotionSensorState = LOW;
@@ -129,8 +120,17 @@ int hall1npMotionSensorValue = 0;
 int kitchenMotionSensorValue = 0;
 int livroomMotionSensorValue = 0;
 
-//ralay nilan boost state
-int ralayNilanBoostState = 0;
+//binary sensors state (for change detection)
+int hall1npMainDoorSensorState = HIGH;
+int kitchenWindowSensorState = HIGH;
+int livroomDoorToGardenSensorState = HIGH;
+int parBedroomWindowSensorState = HIGH;
+int childroom1WindowSensorState = HIGH;
+int childroom2WindowSensorState = HIGH;
+
+//MQTT reconnect timing (non-blocking)
+unsigned long lastMqttReconnectAttempt = 0;
+const unsigned long mqttReconnectInterval = 5000;  // 5 seconds between attempts
 
 //----------endStateRegister----------
 
@@ -206,32 +206,30 @@ static struct pt pt1, pt2, pt3;
 
 PubSubClient mqttClient(mqtt_server, 1883, callback, mega1);
 
-void reconnect() {
-  // Loop until we're reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-
-    if (mqttClient.connect("KlonClient", mqtt_user, mqtt_password)) {
-      Serial.println("connected");
-      //once connected to MQTT broker, subscribe command if any
-      mqttClient.subscribe(ralay_nilan_boost);
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+// Non-blocking MQTT reconnect - returns true if connected
+boolean reconnect() {
+  Serial.print("Attempting MQTT connection...");
+  if (mqttClient.connect("KlonClient", mqtt_user, mqtt_password)) {
+    Serial.println("connected");
+    //once connected to MQTT broker, subscribe command if any
+    mqttClient.subscribe(ralay_nilan_boost);
+    return true;
+  } else {
+    Serial.print("failed, rc=");
+    Serial.print(mqttClient.state());
+    Serial.println(" try again in 5 seconds");
+    return false;
   }
 }  //end reconnect()
 
 void EthernetConnect() {
+  Serial.println("Trying DHCP...");
   if (Ethernet.begin(mac) == 0) {
-    Serial.println("Failed to configure Ethernet using DHCP");
-    // no point in carrying on, so do nothing forevermore:
-    for (;;)
-      ;
+    Serial.println("DHCP failed, using static IP fallback");
+    // Fallback to static IP instead of infinite loop
+    Ethernet.begin(mac, ip);
+  } else {
+    Serial.println("DHCP successful");
   }
   // print your local IP address:
   Serial.print("My IP address: ");
@@ -299,6 +297,11 @@ void setup() {
   bathroomFloorTempSensorDefinition.begin();
   childroom1FloorTempSensorDefinition.begin();
   childroom2FloorTempSensorDefinition.begin();
+
+  // Enable watchdog timer (8 second timeout)
+  // If loop() doesn't complete within 8 seconds, Arduino auto-resets
+  wdt_enable(WDTO_8S);
+  Serial.println("Watchdog enabled (8s timeout)");
 }
 
 //----------Buttons----------
@@ -539,49 +542,53 @@ void motionSensorKitchen() {
   }
 }
 
-void motionSensor(int motionSensorPin, int motionSensorState, const char* motionMqttMessage) {
-  if (digitalRead(motionSensorPin) == HIGH) {
-    Serial.println("Detekce pohybu pomoci HC-SR501!");
-    mqttClient.publish(motionMqttMessage, "ON");
-  } else if (digitalRead(motionSensorPin) == LOW) {
-    mqttClient.publish(motionMqttMessage, "OFF");
-  }
-}
-void motionSensorNp1ObyvakPohyb() {
-    Serial.println("Detekce pohybu pomoci HC-SR501!");
-    mqttClient.publish(np1_obyvak_pohyb, "ON");
-}
 //----------end motions----------
 //----------Binary sensors----------
-void binarySensor(int binarySensorPin, const char* binarySensorMqttMessage) {
-  if (digitalRead(binarySensorPin) == LOW) {
-    Serial.print("Sensor rozepnut"); 
-    mqttClient.publish(binarySensorMqttMessage, "ON");
-  } 
-  else if (digitalRead(binarySensorPin) == HIGH) {
-    Serial.print("Sensor sepnut");
-    mqttClient.publish(binarySensorMqttMessage, "OFF");
+// Only publishes when state changes (prevents MQTT flooding)
+void binarySensor(int binarySensorPin, const char* binarySensorMqttMessage, int* sensorState) {
+  int currentState = digitalRead(binarySensorPin);
+  if (currentState != *sensorState) {
+    *sensorState = currentState;
+    if (currentState == LOW) {
+      Serial.print("Sensor rozepnut: ");
+      Serial.println(binarySensorMqttMessage);
+      mqttClient.publish(binarySensorMqttMessage, "ON");
+    } else {
+      Serial.print("Sensor sepnut: ");
+      Serial.println(binarySensorMqttMessage);
+      mqttClient.publish(binarySensorMqttMessage, "OFF");
+    }
   }
 }
-//----------Binary motions----------
+//----------Binary sensors end----------
 
 void loop() {
+  // Reset watchdog timer - must be called regularly or Arduino resets
+  wdt_reset();
+
+  // Non-blocking MQTT reconnect
   if (!mqttClient.connected()) {
-    reconnect();
+    unsigned long now = millis();
+    if (now - lastMqttReconnectAttempt > mqttReconnectInterval) {
+      lastMqttReconnectAttempt = now;
+      if (reconnect()) {
+        lastMqttReconnectAttempt = 0;
+      }
+    }
   }
-  //motionSensor(hall1npMotionSensor, hall1npMotionSensorState, np1_predsin_pohyb);
-  //motionSensor(kitchenMotionSensor, kitchenMotionSensorState, np1_kuchyn_pohyb);
-  //motionSensor(livroomMotionSensor, livroomMotionSensorState, np1_obyvak_pohyb);
+
+  // Motion sensors
   motionSensorLivingroom();
   motionSensorHall1np();
   motionSensorKitchen();
-  
-  binarySensor(hall1npMainDoorSensor, np1_predsin_dvere);
-  binarySensor(kitchenWindowSensor, np1_kuchyn_okno);
-  binarySensor(livroomDoorToGardenSensor, np1_obyvak_dvere);
-  binarySensor(parBedroomWindowSensor, np2_loznice_okno);
-  binarySensor(childroom1WindowSensor, np2_dp1_okno);
-  binarySensor(childroom2WindowSensor, np2_dp2_okno);
+
+  // Binary sensors (only publish on state change)
+  binarySensor(hall1npMainDoorSensor, np1_predsin_dvere, &hall1npMainDoorSensorState);
+  binarySensor(kitchenWindowSensor, np1_kuchyn_okno, &kitchenWindowSensorState);
+  binarySensor(livroomDoorToGardenSensor, np1_obyvak_dvere, &livroomDoorToGardenSensorState);
+  binarySensor(parBedroomWindowSensor, np2_loznice_okno, &parBedroomWindowSensorState);
+  binarySensor(childroom1WindowSensor, np2_dp1_okno, &childroom1WindowSensorState);
+  binarySensor(childroom2WindowSensor, np2_dp2_okno, &childroom2WindowSensorState);
 
   protoThreadButtons(&pt2, 20);     // by calling them infinitely
   //protoThreadRelay(&pt3, 30);       // by calling them infinitely
