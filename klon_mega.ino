@@ -10,7 +10,7 @@
 
 void callback(char* topic, byte* payload, unsigned int length);
 
-//----------pin definition----------//freePins: 46
+//----------pin definition----------//freePins: 51
 //1NP HALL
 const int hall1npMainDoorSensor = 22;
 const int hall1npFloorTempSensor = 23;
@@ -60,7 +60,7 @@ const int childroom2WindowSensor = 19;
 const int awningRelay1 = 32;
 const int awningRelay2 = 46;
 
-//----------end pin definition----------//freePins: 46
+//----------end pin definition----------//freePins: 51
 
 //sensors
 #define typDHT22 DHT22

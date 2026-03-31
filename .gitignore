@@ -1,0 +1,12 @@
+# Credentials and secrets
+arduino_secrets.h
+
+# Arduino build artifacts
+*.elf
+*.hex
+*.bin
+*.eep
+*.lst
+*.map
+*.sym
+build/
