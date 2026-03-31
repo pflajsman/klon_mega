@@ -274,26 +274,16 @@ void setup() {
   PT_INIT(&pt1);  // sensor thread
   PT_INIT(&pt2);  // button thread
   PT_INIT(&pt3);  // relay thread
-  //buttons
-  pinMode(livroomLightButton, INPUT);
-  digitalWrite(livroomLightButton, LOW);
-  pinMode(dinroomLightButton, INPUT);
-  digitalWrite(dinroomLightButton, LOW);
-  pinMode(stairsLightButton, INPUT);
-  digitalWrite(stairsLightButton, LOW);
-  pinMode(livingroomHall2npLightButton, INPUT);
-  digitalWrite(livingroomHall2npLightButton, LOW);
-  pinMode(hall2npLightButton, INPUT);
-  digitalWrite(hall2npLightButton, LOW);
-  pinMode(hall2npStairsLightButton, INPUT);
-  digitalWrite(hall2npStairsLightButton, LOW);
-  pinMode(bathroomLedButton, INPUT);
-  digitalWrite(bathroomLedButton, LOW);
-  pinMode(kitchenDevilSideLedButton, INPUT);
-  digitalWrite(kitchenDevilSideLedButton, LOW);
-  pinMode(kitchenSinkSideLedButton, INPUT);
-  digitalWrite(kitchenSinkSideLedButton, LOW);
-  
+  //buttons - INPUT_PULLUP ensures stable readings when switch is open
+  pinMode(livroomLightButton, INPUT_PULLUP);
+  pinMode(dinroomLightButton, INPUT_PULLUP);
+  pinMode(stairsLightButton, INPUT_PULLUP);
+  pinMode(livingroomHall2npLightButton, INPUT_PULLUP);
+  pinMode(hall2npLightButton, INPUT_PULLUP);
+  pinMode(hall2npStairsLightButton, INPUT_PULLUP);
+  pinMode(bathroomLedButton, INPUT_PULLUP);
+  pinMode(kitchenDevilSideLedButton, INPUT_PULLUP);
+  pinMode(kitchenSinkSideLedButton, INPUT_PULLUP);
   //buttons end
   //sensors dht22 Air
   hall1npAirTempHumSensorDefinition.begin();
