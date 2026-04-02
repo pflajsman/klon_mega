@@ -386,8 +386,8 @@ void temperatureHumidityDht(DHT sensor, char* publishTemperature, char* publishH
   String str;
   double temperature = 0.0;
   double humidity = 0.0;
-  temperature = sensor.readTemperature();
-  humidity = sensor.readHumidity();
+  temperature = sensor.readTemperature() - 1;
+  humidity = sensor.readHumidity() + 13;
   // kontrola, jestli jsou načtené hodnoty čísla pomocí funkce isnan
   if (isnan(temperature) || isnan(humidity)) {
     // při chybném čtení vypiš hlášku
