@@ -64,11 +64,12 @@ const int awningRelay2 = 46;
 
 //sensors
 #define typDHT22 DHT22
+#define typDHT11 DHT11
 
 DHT hall1npAirTempHumSensorDefinition(hall1npAirTempHumSensor, typDHT22);
 DHT livroomAirTempHumSensorDefinition(livroomAirTempHumSensor, typDHT22);
 DHT bathroomAirTempHumSensorDefinition(bathroomAirTempHumSensor, typDHT22);
-DHT childroom1AirTempHumSensorDefinition(childroom1AirTempHumSensor, typDHT22);
+DHT childroom1AirTempHumSensorDefinition(childroom1AirTempHumSensor, typDHT11);
 DHT childroom2AirTempHumSensorDefinition(childroom2AirTempHumSensor, typDHT22);
 
 
